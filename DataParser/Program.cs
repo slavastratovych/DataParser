@@ -1,6 +1,5 @@
 using CsvHelper;
 using ExcelDataReader;
-using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -13,10 +12,22 @@ namespace DataParser
     {
         static void Main(string[] args)
         {
-            string[] filenames = args;
-            var data = new List<Model>();
+            var filenames = new List<string>();
+            foreach (string name in args)
+            {
+                if (Directory.Exists(name))
+                {
+                    filenames.AddRange(Directory.GetFiles(name));
+                }
+                else
+                {
+                    filenames.Add(name);
+                }
+            }
 
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+            var data = new List<Model>();
             foreach (var filename in filenames)
             {
                 using var readStream = File.Open(filename, FileMode.Open, FileAccess.Read);
@@ -29,15 +40,15 @@ namespace DataParser
                 {
                     while (reader.Read()) //Each ROW
                     {
-                        var model = new Model();
+                        var modelBuilder = new ModelBuilder();
 
                         for (int column = 0; column < reader.FieldCount; column++)
                         {
                             var value = reader.GetValue(column); //Get Value returns object
-                            ParseValue(model, value);
+                            modelBuilder.SetValue(value);
                         }
 
-                        data.Add(model);
+                        data.Add(modelBuilder.GetResult());
                     }
 
 
@@ -54,54 +65,33 @@ namespace DataParser
 
             using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
 
-            csv.WriteRecords(data.Distinct());
+            var dataByPhone = data
+                .Where(x => !string.IsNullOrWhiteSpace(x.Phone))
+                .GroupBy(x => x.Phone)
+                .ToDictionary(x => x.Key, x => DoMerge(x))
+                .Where(x => !string.IsNullOrWhiteSpace(x.Value.Name))
+                .Select(x => x.Value);
+
+            csv.WriteRecords(dataByPhone);
         }
 
-        private static void ParseValue(Model model, object value)
+        private static Model DoMerge(IEnumerable<Model> models)
         {
-            if (value is DateTime)
-            {
-                model.BirthDate = (DateTime)value;
-                return;
-            }
+            Model result = null;
 
-            if (value is string)
+            foreach (var modelItem in models)
             {
-                var stringValue = value as string;
-
-                // Check for operator string
-                if (stringValue.StartsWith("ПАО") || stringValue.StartsWith("ООО"))
+                if (result == null)
                 {
-                    model.Operator = stringValue;
-                }
-                // Check for name
-                else if (stringValue.Split(' ').Length == 3 && !stringValue.Contains("-") && !stringValue.Contains("Республика"))
-                {
-                    model.Name = stringValue;
-                }
-                else if (stringValue.StartsWith("UTC"))
-                {
-                    model.UTCOffset = stringValue;
+                    result = modelItem;
                 }
                 else
                 {
-                    model.Address = stringValue;
+                    ModelHelper.Merge(result, modelItem);
                 }
-                return;
             }
 
-            if (value is double)
-            {
-                var doubleValue = (double)value;
-                if (doubleValue.ToString().Length == 11)
-                {
-                    model.Phone = "+" + doubleValue.ToString();
-                }
-                else
-                {
-                    model.Unknown = doubleValue;
-                }
-            }
+            return result;
         }
     }
 }
