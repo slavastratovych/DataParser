@@ -368,3 +368,4 @@ launchsettings.json
 # Data Files
 *.xlsx
 *.xls
+*.csv

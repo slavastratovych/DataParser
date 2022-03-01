@@ -1,4 +1,4 @@
-﻿using System;
+﻿using DataParser.Model;
 using System.Text.RegularExpressions;
 
 namespace DataParser
@@ -8,69 +8,40 @@ namespace DataParser
         // TODO: Change from global match to match in all fields and extract specific value
         private static readonly Regex NameRegex = new Regex("^[А-Яа-я]+\\s+[А-Яа-я]+\\s[А-Яа-я]+$", RegexOptions.Compiled);
         private static readonly Regex EmailRegex = new Regex("^[\\w/._-]+@[\\w/._-]+.[A-Za-z]+$", RegexOptions.Compiled);
+        private static readonly Regex PhoneRegex = new Regex("^\\+?\\d+$", RegexOptions.Compiled);
 
-        private static int _uniqueID = 1;
-        private Model model;
+        private Person model;
 
         public ModelBuilder()
         {
-            model = new Model();
-            model.ID = _uniqueID++;
+            model = new Person();
         }
 
         public void SetValue(object value)
         {
-            if (value is DateTime)
+            var stringValue = value.ToString();
+            stringValue = stringValue.Trim();
+
+            if (EmailRegex.IsMatch(stringValue))
             {
-                model.BirthDate = (DateTime)value;
+                model.Email = stringValue;
                 return;
             }
 
-            if (value is string)
+            if (NameRegex.IsMatch(stringValue))
             {
-                var stringValue = value as string;
-                stringValue = stringValue.Trim();
-
-                // Check for operator string
-                if (stringValue.StartsWith("ПАО") || stringValue.StartsWith("ООО"))
-                {
-                    model.Operator = stringValue;
-                    return;
-                }
-
-                if (EmailRegex.IsMatch(stringValue))
-                {
-                    model.Email = stringValue;
-                    return;
-                }
-
-                if (NameRegex.IsMatch(stringValue))
-                {
-                    model.Name = stringValue;
-                    return;
-                }
-
-                if (stringValue.StartsWith("UTC"))
-                {
-                    model.UTCOffset = stringValue;
-                    return;
-                }
-
-                model.Address = stringValue;
+                model.Name = stringValue;
                 return;
             }
 
-            if (value is double)
+            if (PhoneRegex.IsMatch(stringValue))
             {
-                var doubleValue = (double)value;
-                if (doubleValue.ToString().Length == 11)
-                {
-                    model.Phone = "+" + doubleValue.ToString();
-                }
+                model.Phone = stringValue;
+                return;
             }
         }
 
-        public Model GetResult()
+        public Person GetResult()
         {
             return model;
         }
